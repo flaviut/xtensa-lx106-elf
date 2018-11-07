@@ -1,0 +1,180 @@
+# Maintainer: Flaviu Tamas <me@flaviutamas.com>
+# Contributor: Anatol Pomozov <anatol.pomozov@gmail.com>
+# Contributor: Martin Schmölzer <mschmoelzer@gmail.com>
+
+_target=xtensa-lx106-elf
+pkgname=$_target-gcc
+pkgver=4.8.5
+_islver=0.14
+pkgrel=1
+#_snapshot=8-20180427
+pkgdesc='The GNU Compiler Collection - cross compiler for extensa-lx106 (bare-metal) target'
+arch=(x86_64)
+url='http://gcc.gnu.org/'
+license=(GPL LGPL FDL)
+depends=($_target-binutils zlib libmpc)
+makedepends=(gmp mpfr) #$_target-newlib)
+optdepends=('xtensa-lx106-elf-newlib: Standard C library optimized for embedded systems')
+options=(!emptydirs !strip)
+source=(
+    https://ftpmirror.gnu.org/gnu/gcc/gcc-$pkgver/gcc-$pkgver.tar.bz2{,.sig}
+	http://isl.gforge.inria.fr/isl-$_islver.tar.bz2
+    patch-gcc46-texi.diff
+    001_gcc_bug_62231.patch
+    002_gcc_bug_62231.patch
+    100-uclibc-conf.patch
+    111-pr65730.patch
+    130-pr43538.patch
+    131-mt-ospace-preserve-FLAGS_FOR_TARGET.patch
+    132-build_gcc-5_with_gcc-6.patch
+    301-missing-execinfo_h.patch
+    305-libmudflap-susv3-legacy.patch
+    810-arm-softfloat-libgcc.patch
+    830-arm_unbreak_armv4t.patch
+    841-PR57717-E500v2.patch
+    842-PR60155.patch
+    843-aarch64-vmlaq_lane_s32-typo.patch
+    850-libstdcxx-uclibc-c99.patch
+    851-PR-other-56780.patch
+    871-xtensa-reimplement-register-spilling.patch
+    872-xtensa-use-unwind-dw2-fde-dip-instead-of-unwind-dw2-.patch
+    873-xtensa-fix-_Unwind_GetCFA.patch
+    900-musl-support.patch
+)
+sha256sums=('22fb1e7e0f68a63cee631d85b20461d1ea6bda162f03096350e38c8d427ecf23'
+            'SKIP'
+            '7e3c02ff52f8540f6a85534f54158968417fd676001651c8289c705bd0228f36'
+            '07d1962cd5335015c65ee79eefe3aabe25e6e986b1760b9cb75f7ee31d2149dd'
+            'efec3a17a1ce9880106ac8bd0f1b0a593e3b1a92437552f6209e915332b49b60'
+            '12d49cfeb395f1d0c21a9bcf2ebe7bdacd6cbfe71c160725e6e165cc9e1d2480'
+            'c103fc9dbbdd41548a0e8cdfdc5fb7a2c84440c19178725cb057f59bba3d4164'
+            '1398bb85b515c0a90cb870bb62ec42409776b8857f3f6a62edec5d0f17281f31'
+            'da6b0ba8df5480442b52893ea89d3644e07683b27f4cf6f23c7f317b6fa3188b'
+            '641c38172e69d8ddcddbd851a3191d0a5bc773d8e28d7b2112c4e1a018b6c08a'
+            '22cce1198f46d9171334b708b642b7c9cba8aad59c93f76600784541be69dead'
+            '8b03cc6ef56e5bdd8a2eaae5f00a71cdd404904c7302301e11c70aaf09624411'
+            '30d036b50d81729f16ec28b574d90af35a9e34155d469b4dd64c6e7af8fa329a'
+            '81131b7b7b5bd7fcadd93e3959df6a8156d61d7df28f3cff699f97d48c59650f'
+            'c8724dd3632f5ffd47db4ef5cdb3c88f136b558873ac1b590e41a292ddaf6a73'
+            '53826c308579ca58330163f94e2e2e7ef47385312c68a1e3d83dff94997a5c72'
+            '137b450b85ef77c5975d0941c130e09fbe6b40f6b555fa04d2ee86383378e816'
+            'b2401305fec6ebe504d22e325b28c9219570e1387bac1babcf6e7f88d876dea3'
+            '2c65297959ff573d6a2930dcd013c21799e2ca9d867d87ab30eec46c3bc6d768'
+            'b219d8b3c892db1b370b71db8ae44c85f02eaebe83e8e4e19dbcec9955febd13'
+            'fab701a3c22dc23c2c72ef6489062efb210de3dd78a4461898fd3d483854e19d'
+            'e771671a2e837d093614075f2e26097f41a80d854963fa97c5fae92f42824d0f'
+            'f84f063c3bd55c3024c8d562c6ed793421195c6879f2793746d8ec6086fe1d25'
+            '2fb66b2b2716b40fa8142669db28672256e2dfc93774f6ccdfb49a4959aac5e3')
+validpgpkeys=(13975A70E63C361C73AE69EF6EEB81F8981C74C7) # Richard Guenther <richard.guenther@gmail.com>
+
+if [ -n "$_snapshot" ]; then
+  _basedir=gcc-$_snapshot
+else
+  _basedir=gcc-$pkgver
+fi
+
+prepare() {
+  cd "$_basedir"
+
+  # link isl for in-tree builds
+  ln -sf ../isl-$_islver isl
+
+  echo $pkgver > gcc/BASE-VER
+
+  # hack! - some configure tests for header files using "$CPP $CPPFLAGS"
+  sed -i "/ac_cpp=/s/\$CPPFLAGS/\$CPPFLAGS -O2/" {libiberty,gcc}/configure
+
+  # fix texinfo compile error
+  patch gcc/doc/gcc.texi < "$srcdir/patch-gcc46-texi.diff"
+  for patch in "$srcdir/"*.patch; do
+    patch -p1 < "$patch"
+  done
+
+  mkdir -p "$srcdir/build-"{gcc,gcc-nano}
+}
+
+_build_gcc() {
+  export CFLAGS_FOR_TARGET="$CFLAGS_FOR_TARGET -mlongcalls"
+  export CXXFLAGS_FOR_TARGET="$CXXFLAGS_FOR_TARGET -mlongcalls"
+  export LDFLAGS_FOR_TARGET=
+  "$srcdir/$_basedir/configure" \
+    --target=$_target \
+    --prefix=/usr \
+    --with-sysroot=/usr/$_target \
+    --with-native-system-header-dir=/include \
+    --libexecdir=/usr/lib \
+    --enable-languages=c,c++ \
+    --enable-plugins \
+    --disable-decimal-float \
+    --disable-libffi \
+    --disable-libgomp \
+    --disable-libmudflap \
+    --disable-libquadmath \
+    --disable-libssp \
+    --disable-libstdcxx-pch \
+    --disable-nls \
+    --disable-shared \
+    --disable-threads \
+    --disable-tls \
+    --with-gnu-as \
+    --with-gnu-ld \
+    --with-system-zlib \
+    --with-newlib \
+    --with-headers=/usr/$_target/include \
+    --with-python-dir=share/gcc-$_target \
+    --with-gmp \
+    --with-mpfr \
+    --with-mpc \
+    --with-isl \
+    --with-libelf \
+    --enable-gnu-indirect-function \
+    --with-host-libstdcxx='-static-libgcc -Wl,-Bstatic,-lstdc++,-Bdynamic -lm' \
+    --with-multilib-list=rmprofile \
+    --disable-__cxa_atexit \
+    --enable-lto \
+    --enable-target-optspace \
+    --without-long-double-128 \
+
+  make INHIBIT_LIBC_CFLAGS='-DUSE_TM_CLONE_REGISTRY=0'
+}
+
+build() {
+  cd "$srcdir/build-gcc"
+  export CFLAGS_FOR_TARGET='-g -O2'
+  export CXXFLAGS_FOR_TARGET='-g -O2'
+  _build_gcc
+
+  # Build libstdc++ without exceptions support (the 'nano' variant)
+  cd "$srcdir/build-gcc-nano"
+  export CFLAGS_FOR_TARGET='-g -Os -fno-exceptions'
+  export CXXFLAGS_FOR_TARGET='-g -Os -fno-exceptions'
+  _build_gcc
+}
+
+package() {
+  cd $srcdir/build-gcc
+  make DESTDIR="$pkgdir" install -j1
+
+  cd $srcdir/build-gcc-nano
+  make DESTDIR="$pkgdir.nano" install -j1
+  # we need only libstdc nano files
+  multilibs=( $($pkgdir/usr/bin/$_target-gcc -print-multi-lib 2>/dev/null) )
+  for multilib in "${multilibs[@]}"; do
+    dir="${multilib%%;*}"
+    from_dir=$pkgdir.nano/usr/$_target/lib/$dir
+    to_dir=$pkgdir/usr/$_target/lib/$dir
+    cp -f $from_dir/libstdc++.a $to_dir/libstdc++_nano.a
+    cp -f $from_dir/libsupc++.a $to_dir/libsupc++_nano.a
+  done
+
+  # strip target binaries
+  find "$pkgdir"/usr/lib/gcc/$_target/$pkgver "$pkgdir"/usr/$_target/lib -type f -and \( -name \*.a -or -name \*.o \) -exec $_target-objcopy -R .comment -R .note -R .debug_info -R .debug_aranges -R .debug_pubnames -R .debug_pubtypes -R .debug_abbrev -R .debug_line -R .debug_str -R .debug_ranges -R .debug_loc '{}' \;
+
+  # strip host binaries
+  find "$pkgdir"/usr/bin/ "$pkgdir"/usr/lib/gcc/$_target/$pkgver -type f -and \( -executable \) -exec strip '{}' \;
+
+  # Remove files that conflict with host gcc package
+  rm -r "$pkgdir"/usr/share/man/man7
+  rm -r "$pkgdir"/usr/share/info
+  rm "$pkgdir"/usr/lib/libcc1.*
+}
