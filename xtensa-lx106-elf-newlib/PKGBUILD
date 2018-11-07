@@ -10,14 +10,30 @@ pkgdesc='A C standard library implementation intended for use on embedded system
 arch=(any)
 url='http://www.sourceware.org/newlib/'
 license=(BSD)
-makedepends=($_target-gcc)
+makedepends=() #$_target-gcc)
 options=(!emptydirs !strip)
-source=('http://mirrors.kernel.org/sources.redhat.com/newlib/newlib-2.0.0.tar.gz')
-sha256sums=('3ad3664f227357df15ff34e954bfd9f501009a647667cd307bf0658aefd6eb5b')
+source=(
+    "https://sourceware.org/pub/newlib/newlib-$pkgver.tar.gz"
+    "https://github.com/jcmvbkbc/crosstool-NG/raw/a43bb699167064de70419b1143c8d1d8d627116b/overlays/xtensa_lx106.tar"
+    "0001-xtensa-add-port.patch"
+    "0002-xtensa-cleanups.patch"
+    "0003-xtensa-enable-sqrt.patch")
+sha256sums=('49c29e9129325e7c3b221aa829743ddcd796d024440e47c80fc0d6769af72d8a'
+            '5c313a32ab7b437396c7e478a45966f9e66c11a022abe1ced4134327287cec98'
+            'd7fd0df736261d26d3e0e3b640797b00c5d992b206de812c74d1710b812ea644'
+            'e64de9f118d28d1ef274bfcd0924e532a4303d7bb915d9d127dc985d060ae827'
+            '1b0cba363cd15b2b9a81fd909ce86dfb4fb0c49be80df4841ae83581ff75c7a0')
+
+prepare() {
+  # crosstool-NG patches
+  for patch in *.patch; do
+    patch -p 1 -d newlib-$_upstream_ver < "$patch"
+  done
+}
 
 build() {
   rm -rf build-{newlib,nano}
-  mkdir build-{newlib,nano}
+  mkdir -p build-{newlib,nano}
 
   export CFLAGS_FOR_TARGET='-g -O2 -mlongcalls -DMALLOC_PROVIDED'
   cd "$srcdir"/build-newlib
